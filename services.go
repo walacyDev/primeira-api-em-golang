@@ -1,8 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -69,38 +69,34 @@ func AddNewTask(c *gin.Context) {
 func GetTaskById(c *gin.Context) {
 	id := c.Param("id")
 
-	for _, task := range taskList {
-		if fmt.Sprintf("%d", task.Id) == id {
-			c.JSON(http.StatusOK, task)
-			return
-		}
+	var task Tasks
+	row := DB.QueryRow("SELECT id, title FROM tasks WHERE id = ?", id)
+
+	if err := row.Scan(&task.Id, &task.Title); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 
-	c.JSON(http.StatusNotFound, gin.H{
-		"message": "Tarefa não foi encontrada com esse id",
-	})
+	c.JSON(http.StatusOK, task)
 }
 
 // DELETANDO PELO ID
 func DeleteTaskById(c *gin.Context) {
 	id := c.Param("id")
 
-	for index, task := range taskList {
-		if fmt.Sprintf("%d", task.Id) == id {
-			taskList = append(taskList[:index], taskList[index+1:]...)
-			c.JSON(http.StatusOK, gin.H{"Message": "Tarefa deletada com sucesso!"})
-			return
-		}
+	_, err := DB.Exec("DELETE FROM tasks WHERE id = ?", id)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 
-	c.JSON(http.StatusNotFound, gin.H{
-		"message": "Tarefa não foi encontrada",
-	})
+	c.JSON(http.StatusOK, gin.H{"message": "Tarefa deletada com sucesso!"})
 }
 
 // ATUALIZAR PELO ID
 func UpdateTaskById(c *gin.Context) {
-	id := c.Param("id")
+	id, _ := strconv.Atoi(c.Param("id"))
 
 	var updateTask Tasks
 
@@ -109,14 +105,13 @@ func UpdateTaskById(c *gin.Context) {
 		return
 	}
 
-	for index, task := range taskList {
-		if fmt.Sprintf("%d", task.Id) == id {
-			updateTask.Id = task.Id
-			taskList[index] = updateTask
-			c.JSON(http.StatusOK, gin.H{"message": "Tarefa atualizada com sucesso!"})
-			return
-		}
+	_, err := DB.Exec("UPDATE tasks SET title = ? WHERE id = ?", updateTask.Title, id)
+
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"error": err.Error()})
+		return
 	}
 
-	c.JSON(http.StatusNotFound, gin.H{"message": "Tarefa não encontrada!"})
+	updateTask.Id = id
+	c.JSON(http.StatusOK, updateTask)
 }
